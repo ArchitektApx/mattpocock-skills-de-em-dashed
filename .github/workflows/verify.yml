@@ -1,0 +1,60 @@
+name: Verify
+
+# pull_request, never pull_request_target: this checks out and runs code from
+# the PR head, so it must not have write access or secrets.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    # The job name is the required status check context in the main ruleset.
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # The whole point of the fork: no em dash anywhere in tracked text files.
+      - name: No em dashes
+        run: |
+          bash scripts/fork/de-em-dash.sh
+          if ! git diff --quiet; then
+            echo "::error::Em dashes found. Run scripts/fork/de-em-dash.sh and commit the result:"
+            git diff --stat
+            exit 1
+          fi
+
+      # The fork overlay is generated; a hand edit to its output drifts from
+      # what the next sync will write.
+      - name: Fork overlay is up to date
+        run: |
+          node scripts/fork/apply-fork.mjs
+          if ! git diff --quiet; then
+            echo "::error::Fork overlay out of date. Run scripts/fork/apply-fork.mjs and commit the result:"
+            git diff --stat
+            exit 1
+          fi
+
+      - name: Validate JSON manifests
+        run: |
+          shopt -s nullglob
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json package.json .sync-state.json; do
+            [ -f "$f" ] || continue
+            node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$f" || { echo "::error::invalid JSON: $f"; exit 1; }
+          done
+

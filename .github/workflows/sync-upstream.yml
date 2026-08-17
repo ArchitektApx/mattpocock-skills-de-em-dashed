@@ -1,96 +1,120 @@
 name: Sync upstream
 
-# Regenerates main from mattpocock/skills:
-#   1. start from upstream/main's tree
-#   2. overlay the fork-owned paths (.github/workflows, scripts/fork) from our main
-#   3. run scripts/fork/apply-fork.mjs (repo metadata, README notice, CLAUDE.md section)
-#   4. run scripts/fork/de-em-dash.sh (em dash -> hyphen)
-#   5. commit the result as a merge of our main and upstream/main, push
+# Regenerates the tree from mattpocock/skills and opens a pull request:
+#   1. working tree + index = upstream/main
+#   2. overlay the fork-owned paths (.github, scripts/fork) from main
+#   3. node scripts/fork/apply-fork.mjs  (repo metadata, README notice, CLAUDE.md section)
+#   4. bash scripts/fork/de-em-dash.sh   (em dash -> hyphen)
+#   5. record the upstream commit in .sync-state.json
+#   6. peter-evans/create-pull-request commits the diff to sync/upstream and opens a PR
 #
-# Because the tree is rebuilt from upstream every time there is nothing to
-# conflict; the merge commit only exists to keep the upstream history linked.
-# GITHUB_TOKEN pushes do not trigger other workflows, which is why the em dash
-# replacement runs here as well as in de-em-dash.yml.
+# The tree is rebuilt from upstream every time, so there is nothing to
+# conflict. main is protected by a ruleset with no bypass, so nothing here
+# pushes to main directly; the PR is squash-merged by a human.
 
 on:
   schedule:
+    # Daily, off the hour to avoid GitHub's cron congestion.
     - cron: "17 4 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: main-writers
+  group: sync-upstream
   cancel-in-progress: false
 
 env:
   UPSTREAM_REPO: mattpocock/skills
   UPSTREAM_BRANCH: main
-  FORK_OWNED_PATHS: .github/workflows scripts/fork
+  FORK_OWNED_PATHS: .github scripts/fork
 
 jobs:
   sync:
-    name: Sync
     runs-on: ubuntu-latest
+    # A hung clone would otherwise sit on a runner for the default six hours.
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      # Every action is pinned to a commit SHA (repository policy). A moved tag
+      # on an action that holds contents:write is a write path into this repo.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          # Full history so the PR body can list upstream commits since the last sync.
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Fetch upstream
-        run: |
-          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
-
-      - name: Rebuild main from upstream
-        id: rebuild
+      - name: Rebuild tree from upstream
         run: |
           set -euo pipefail
-          MAIN="$(git rev-parse HEAD)"
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
           UP="$(git rev-parse "upstream/${UPSTREAM_BRANCH}")"
 
-          if git merge-base --is-ancestor "$UP" "$MAIN"; then
-            echo "Already up to date with upstream ${UP}"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          PREV=""
+          if [ -f .sync-state.json ]; then
+            PREV="$(node -p 'JSON.parse(require("fs").readFileSync(".sync-state.json","utf8")).commit || ""')"
           fi
 
-          # Working tree + index = upstream.
-          git checkout --quiet --detach "$UP"
+          # Working tree + index = upstream. HEAD stays on main so the PR
+          # action sees the result as uncommitted changes against main.
+          git read-tree -u --reset "$UP"
 
-          # Fork-owned paths come from our main, wholesale (upstream's copies are dropped).
+          # Fork-owned paths come from main wholesale; upstream's copies are dropped.
           for p in $FORK_OWNED_PATHS; do
             git rm -r -q --cached --ignore-unmatch -- "$p"
             rm -rf -- "$p"
           done
-          git checkout "$MAIN" -- $FORK_OWNED_PATHS
+          git checkout HEAD -- $FORK_OWNED_PATHS
 
           node scripts/fork/apply-fork.mjs
           bash scripts/fork/de-em-dash.sh
+
+          printf '{\n  "upstream": "%s",\n  "branch": "%s",\n  "commit": "%s"\n}\n' \
+            "$UPSTREAM_REPO" "$UPSTREAM_BRANCH" "$UP" > .sync-state.json
           git add -A
 
-          TREE="$(git write-tree)"
-          SHORT="$(git rev-parse --short "$UP")"
-          COMMIT="$(git commit-tree "$TREE" -p "$MAIN" -p "$UP" \
-            -m "chore: sync upstream ${UPSTREAM_REPO}@${SHORT}" \
-            -m "Regenerated from ${UPSTREAM_REPO} ${UP} with fork overlay applied.")"
+          # PR body. Written to a file outside the tree and passed by path, never
+          # through GITHUB_OUTPUT: it embeds upstream commit subjects, and a
+          # subject matching a heredoc delimiter could otherwise write arbitrary
+          # step outputs.
+          REPORT="${RUNNER_TEMP}/sync-report.md"
+          {
+            echo "Regenerated from [${UPSTREAM_REPO}@${UP:0:7}](https://github.com/${UPSTREAM_REPO}/commit/${UP}) with the fork overlay applied (\`scripts/fork/apply-fork.mjs\`, \`scripts/fork/de-em-dash.sh\`)."
+            echo
+            if [ -n "$PREV" ] && git cat-file -e "${PREV}^{commit}" 2>/dev/null; then
+              echo "Upstream commits since [${PREV:0:7}](https://github.com/${UPSTREAM_REPO}/commit/${PREV}):"
+              echo
+              git log --first-parent --format='- %h %s' "${PREV}..${UP}" | head -n 100
+              if [ "$(git rev-list --first-parent --count "${PREV}..${UP}")" -gt 100 ]; then
+                echo "- ... (truncated)"
+              fi
+            else
+              echo "No previous upstream commit recorded; this is the first tracked sync."
+            fi
+          } > "$REPORT"
+          echo "REPORT_PATH=$REPORT" >> "$GITHUB_ENV"
 
-          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Push
-        if: steps.rebuild.outputs.changed == 'true'
-        run: git push origin "${{ steps.rebuild.outputs.commit }}:refs/heads/main"
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          base: main
+          branch: sync/upstream
+          # A stale sync branch is replaced, not merged into.
+          delete-branch: true
+          title: "chore: sync upstream mattpocock/skills"
+          commit-message: "chore: sync upstream mattpocock/skills"
+          body-path: ${{ env.REPORT_PATH }}
+          labels: upstream-sync
+          # Commits through the GitHub API so they arrive verified and satisfy
+          # required_signatures on main. Works only with GITHUB_TOKEN or a
+          # GitHub App token; a PAT would still open the PR but stop signing.
+          sign-commits: true
