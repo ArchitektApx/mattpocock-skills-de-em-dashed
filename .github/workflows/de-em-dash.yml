@@ -1,0 +1,44 @@
+name: Replace em dashes
+
+# Runs scripts/fork/de-em-dash.sh on main and commits whatever it changed.
+# Pushes made with GITHUB_TOKEN (this workflow, sync-upstream.yml) do not
+# re-trigger it, so it cannot loop.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: main-writers
+  cancel-in-progress: false
+
+jobs:
+  de-em-dash:
+    name: Replace em dashes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Replace em dashes
+        run: bash scripts/fork/de-em-dash.sh
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No em dashes found."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: replace em dashes with hyphens"
+          git push origin HEAD:main
