@@ -15,7 +15,7 @@ This repo is [ArchitektApx/mattpocock-skills-de-em-dashed](https://github.com/Ar
 
 Because the tree is rebuilt from scratch there is nothing to conflict. Nothing pushes to `main` directly; the ruleset on `main` has no bypass.
 
-[`.github/workflows/verify.yml`](../../.github/workflows/verify.yml) is the required `verify` status check: it fails a PR that contains an em dash, whose fork overlay is out of date, or whose JSON manifests do not parse. [`.github/workflows/de-em-dash.yml`](../../.github/workflows/de-em-dash.yml) is a safety net that opens a PR replacing em dashes on `main` if any slipped through.
+[`.github/workflows/verify.yml`](../../.github/workflows/verify.yml) is the required `verify` status check. It fails a PR that contains an em dash, whose fork overlay is out of date, whose JSON manifests do not parse, whose `plugin.json` lists a skill path without a `SKILL.md`, that declares hooks or MCP servers, whose `SKILL.md` files lack `name`/`description` frontmatter or share a name, or that adds a symlink or executable not listed in [`audit-allowlist.txt`](./audit-allowlist.txt). The allowlist is edited only after a human has read the file: everything in this repo is redistributed verbatim to whoever installs from it. [`.github/workflows/de-em-dash.yml`](../../.github/workflows/de-em-dash.yml) is a safety net that opens a PR replacing em dashes on `main` if any slipped through.
 
 ## What this means for edits
 

@@ -152,6 +152,7 @@ function withSuffix(text) {
     "- **`verify.yml` triggers on `pull_request`.** It runs PR-head code, so `pull_request_target` would hand fork PRs write access and secrets.",
     "- **`sign-commits: true` on the default `GITHUB_TOKEN`.** A PAT keeps the PR working and silently drops the signature, which `required_signatures` on `main` then rejects.",
     "- **No em dash in any tracked text file.** `verify` fails a PR that contains one; `scripts/fork/de-em-dash.sh` fixes it.",
+    "- **Symlinks and executables are allowlisted, hooks and MCP servers are absent.** Everything here is redistributed verbatim to installers. `verify` fails on a symlink or executable missing from `scripts/fork/audit-allowlist.txt`, and on any `hooks`/`mcpServers` declaration or `.mcp.json`. Add to the allowlist only after reading the file.",
     END,
     "",
   ].join("\n");

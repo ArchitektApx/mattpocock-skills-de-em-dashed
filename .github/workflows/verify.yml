@@ -58,3 +58,75 @@ jobs:
             node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$f" || { echo "::error::invalid JSON: $f"; exit 1; }
           done
 
+      # Every path plugin.json ships must exist. A broken entry breaks install
+      # for every user, and there is no staged rollout to catch it.
+      - name: Plugin manifest paths exist
+        run: |
+          rc=0
+          while IFS= read -r d; do
+            [ -f "$d/SKILL.md" ] || { echo "::error::plugin.json skill has no SKILL.md: $d"; rc=1; }
+          done < <(node -p 'JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8")).skills.join("\n")')
+          exit $rc
+
+      # Hooks and MCP servers execute on the installer's machine. Nothing here
+      # declares any today; if that changes it must be a deliberate, reviewed
+      # change rather than something that arrives with a sync.
+      - name: No hooks or MCP servers declared
+        run: |
+          rc=0
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+            node -e '
+              const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              const bad = ["hooks", "mcpServers", "lspServers"].filter(k => k in m || (m.plugins || []).some(p => k in p));
+              if (bad.length) { console.error(`::error::${process.argv[1]} declares ${bad.join(", ")}`); process.exit(1); }
+            ' "$f" || rc=1
+          done
+          found="$(git ls-files | grep -E '(^|/)(\.mcp\.json|mcp\.json|hooks\.json)$' || true)"
+          if [ -n "$found" ]; then
+            echo "::error::hook/MCP config files present:"; echo "$found"; rc=1
+          fi
+          exit $rc
+
+      - name: Check every skill has frontmatter
+        run: |
+          rc=0
+          while IFS= read -r f; do
+            head -n 1 "$f" | grep -qx -- '---' || { echo "::error::missing frontmatter: $f"; rc=1; }
+            grep -qE '^name:' "$f" || { echo "::error::missing name: $f"; rc=1; }
+            grep -qE '^description:' "$f" || { echo "::error::missing description: $f"; rc=1; }
+          done < <(find skills -name SKILL.md)
+          exit $rc
+
+      # `npx skills` installs flat by frontmatter name, so a duplicate silently
+      # clobbers one skill with another.
+      - name: No duplicate skill names
+        run: |
+          dups="$(find skills -name SKILL.md -print0 \
+            | xargs -0 awk 'FNR==1{c=0} /^---$/{c++; next} c==1 && /^name:/{sub(/^name:[ \t]*/,""); print}' \
+            | sort | uniq -d)"
+          if [ -n "$dups" ]; then
+            echo "::error::duplicate skill names:"; echo "$dups"; exit 1
+          fi
+
+      # Symlinks and executables are redistributed verbatim to everyone who
+      # installs. Each one must be listed in scripts/fork/audit-allowlist.txt,
+      # which is only edited after a human has read the file.
+      - name: Symlinks and executables are allowlisted
+        run: |
+          rc=0
+          allow="$(grep -vE '^\s*(#|$)' scripts/fork/audit-allowlist.txt)"
+          while IFS= read -r entry; do
+            grep -qxF "$entry" <<<"$allow" || {
+              case "${entry%% *}" in
+                120000) echo "::error::unlisted symlink: ${entry#* }" ;;
+                100755) echo "::error::unlisted executable: ${entry#* }" ;;
+              esac
+              rc=1
+            }
+          done < <(git ls-files -s | awk '$1=="120000" || $1=="100755" {print $1" "$4}')
+          while IFS= read -r entry; do
+            git ls-files -s -- "${entry#* }" | awk '{print $1" "$4}' | grep -qxF "$entry" \
+              || echo "::warning::allowlist entry no longer matches a tracked file: $entry"
+          done <<<"$allow"
+          [ $rc -eq 0 ] || echo "::error::Read the file, then add it to scripts/fork/audit-allowlist.txt if it is safe to redistribute."
+          exit $rc
