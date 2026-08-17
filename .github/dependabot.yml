@@ -15,3 +15,15 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: ci
+
+  # package.json / package-lock.json are upstream's (changesets tooling) and are
+  # overwritten by every sync. Not this fork's responsibility: no version
+  # updates, and ignoring every dependency also silences security-update PRs
+  # for this ecosystem. Alerts still show in the Security tab.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
