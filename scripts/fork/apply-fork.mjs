@@ -21,7 +21,7 @@ const FORK_SLUG = "ArchitektApx/mattpocock-skills-de-em-dashed";
 const FORK_URL = `https://github.com/${FORK_SLUG}`;
 const UPSTREAM_SLUG = "mattpocock/skills";
 const UPSTREAM_URL = `https://github.com/${UPSTREAM_SLUG}`;
-const MARKETPLACE_NAME = "architektapx";
+const MARKETPLACE_NAME = "mattpocock-skills-de-em-dashed";
 const OWNER = { name: "ArchitektApx", url: "https://github.com/ArchitektApx" };
 const FORK_SUFFIX = " Fork of mattpocock/skills with every em dash replaced by a hyphen.";
 

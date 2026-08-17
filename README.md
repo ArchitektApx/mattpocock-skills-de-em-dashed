@@ -7,10 +7,10 @@
 >
 >   ```
 >   /plugin marketplace add ArchitektApx/mattpocock-skills-de-em-dashed
->   /plugin install mattpocock-skills@architektapx
+>   /plugin install mattpocock-skills@mattpocock-skills-de-em-dashed
 >   ```
 >
->   Or from the terminal: `claude plugin marketplace add ArchitektApx/mattpocock-skills-de-em-dashed` then `claude plugin install mattpocock-skills@architektapx`.
+>   Or from the terminal: `claude plugin marketplace add ArchitektApx/mattpocock-skills-de-em-dashed` then `claude plugin install mattpocock-skills@mattpocock-skills-de-em-dashed`.
 >
 > - **Codex, and other agents**:
 >
