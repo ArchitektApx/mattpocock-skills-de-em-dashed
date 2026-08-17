@@ -1,0 +1,28 @@
+# Symlinks and executables that are allowed to exist in this repository.
+#
+# Everything committed here is cloned onto every machine that installs from
+# this marketplace or via `npx skills`. verify.yml fails on any symlink
+# (mode 120000) or executable (mode 100755) that is not listed here, so a new
+# one arriving from upstream blocks the sync PR until a human has read it and
+# added it below.
+#
+# Format: <git mode> <path>. Blank lines and # comments are ignored.
+# Audited 2026-08-17.
+
+# Relative symlink to CLAUDE.md so agents reading either file get the same
+# context. Upstream, root-level, not part of any skill.
+120000 AGENTS.md
+
+# Maintainer-only helper: symlinks skills/ into ~/.claude/skills and
+# ~/.agents/skills. Not part of the plugin. Removes a pre-existing real
+# directory of the same name at the destination before linking.
+100755 scripts/link-skills.sh
+
+# Maintainer-only helper: lists SKILL.md paths. Read-only.
+100755 scripts/list-skills.sh
+
+# PreToolUse hook script the git-guardrails-claude-code skill (misc bucket,
+# not in the plugin) has the agent copy into .claude/hooks or ~/.claude/hooks.
+# Reads the tool call from stdin with jq, greps for destructive git patterns,
+# exits 2 to block. No network, no writes.
+100755 skills/misc/git-guardrails-claude-code/scripts/block-dangerous-git.sh

@@ -25,7 +25,7 @@ To (re)link every skill into the local harness skill directories (`~/.claude/ski
 <!-- fork-section:start -->
 # This repo is a fork
 
-This is [ArchitektApx/mattpocock-skills-de-em-dashed](https://github.com/ArchitektApx/mattpocock-skills-de-em-dashed), a fork of [mattpocock/skills](https://github.com/mattpocock/skills) whose only intended difference is that every em dash is replaced by a hyphen. On every sync the whole tree is regenerated from upstream, then `scripts/fork/apply-fork.mjs` and `scripts/fork/de-em-dash.sh` run on top. Only `.github/` and `scripts/fork/` are owned by the fork and survive a sync; edits anywhere else are overwritten by the next sync and belong upstream. See [scripts/fork/README.md](./scripts/fork/README.md).
+This is [ArchitektApx/mattpocock-skills-de-em-dashed](https://github.com/ArchitektApx/mattpocock-skills-de-em-dashed), a fork of [mattpocock/skills](https://github.com/mattpocock/skills) whose only intended difference is that every em dash is replaced by a hyphen. No skill content is authored here. On every sync the whole tree is regenerated from upstream, then `scripts/fork/apply-fork.mjs` and `scripts/fork/de-em-dash.sh` run on top. Only `.github/` and `scripts/fork/` are owned by the fork and survive a sync; edits anywhere else are overwritten by the next sync and belong upstream. See [scripts/fork/README.md](./scripts/fork/README.md).
 
 ## Working in this repository
 
@@ -33,7 +33,9 @@ This is [ArchitektApx/mattpocock-skills-de-em-dashed](https://github.com/Archite
 
 Every commit must be signed. Local commits inherit `commit.gpgsign`; the sync and de-em-dash jobs' commits are signed because `sign-commits: true` makes `peter-evans/create-pull-request` commit through the GitHub API.
 
-Repository policy requires every action to be pinned to a full commit SHA. A tag reference does not fail review, it fails the run. Dependabot owns action versions and bumps them in one grouped PR monthly; bumping a SHA by hand only creates a conflict with the next one.
+Repository policy requires every action to be pinned to a full commit SHA. A tag reference does not fail review, it fails the run. Dependabot owns action versions and bumps them in one grouped PR monthly; bumping a SHA by hand only creates a conflict with the next one. Dependabot ignores npm: `package.json` and `package-lock.json` are upstream's and are overwritten by every sync, so their alerts are upstream's to fix.
+
+Review a sync PR as a supply-chain change, not a formality. Everything committed here is redistributed verbatim to everyone who installs from this marketplace or via `npx skills`, and hooks or MCP servers declared in a manifest would run on their machines. `verify` fails the PR on a new symlink, executable, hook or MCP declaration; when it does, read the file, then allowlist it in `scripts/fork/audit-allowlist.txt` only if it is safe to ship.
 
 ## Invariants
 
@@ -44,4 +46,5 @@ Preserve these through any refactor of `.github/workflows/`:
 - **`verify.yml` triggers on `pull_request`.** It runs PR-head code, so `pull_request_target` would hand fork PRs write access and secrets.
 - **`sign-commits: true` on the default `GITHUB_TOKEN`.** A PAT keeps the PR working and silently drops the signature, which `required_signatures` on `main` then rejects.
 - **No em dash in any tracked text file.** `verify` fails a PR that contains one; `scripts/fork/de-em-dash.sh` fixes it.
+- **Symlinks and executables allowlisted, hooks and MCP servers absent.** `verify` fails on a symlink or executable missing from `scripts/fork/audit-allowlist.txt`, and on any `hooks`/`mcpServers`/`lspServers` declaration or `.mcp.json`. The allowlist grows only after a human has read the file.
 <!-- fork-section:end -->
