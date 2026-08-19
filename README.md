@@ -1,3 +1,12 @@
+> [!IMPORTANT]
+> **This repository is archived and no longer maintained.**
+>
+> Its only purpose was to strip em dashes out of [mattpocock/skills](https://github.com/mattpocock/skills). Upstream removed them itself in [PR #905](https://github.com/mattpocock/skills/pull/905) on 2026-08-19, rewriting the affected sentences by hand rather than substituting characters, and added a rule to its own `CLAUDE.md` to keep them out. Every `SKILL.md`, doc, README, ADR and manifest upstream is now em dash free, so this fork has nothing left to do.
+>
+> **Install upstream instead.** In Claude Code: `/plugin install mattpocock-skills`, or `claude plugins install mattpocock-skills` from a terminal. It is in Claude Code's official marketplace, so there is nothing to add first. For Codex and other agents: `npx skills@latest add mattpocock/skills`. Remove this fork first (`/plugin marketplace remove mattpocock-skills-de-em-dashed`), or you get every skill twice.
+>
+> The only remaining em dashes upstream are in `CHANGELOG.md`, which is changeset generated and was deliberately left as historical record. It is not shipped as part of the plugin.
+
 <!-- fork-notice:start -->
 > **This is a fork.** [ArchitektApx/mattpocock-skills-de-em-dashed](https://github.com/ArchitektApx/mattpocock-skills-de-em-dashed) tracks [mattpocock/skills](https://github.com/mattpocock/skills) and replaces every em dash with a regular hyphen (`-`). Nothing else changes: upstream is synced automatically and the em dash replacement runs on every push.
 >
